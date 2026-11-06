@@ -1,0 +1,68 @@
+name: Build iOS IPA & Archive
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web application
+        run: npm run build
+
+      - name: Sync Capacitor iOS platform
+        run: npx cap sync ios
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Build and Archive iOS App (Release)
+        run: |
+          cd ios/App
+          xcodebuild -project App.xcodeproj \
+            -scheme App \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS=YES
+
+      - name: Export unsigned .ipa for Testing & Sideloading
+        run: |
+          cd ios/App/build
+          mkdir -p Payload
+          cp -r App.xcarchive/Products/Applications/App.app Payload/
+          zip -r CSK_Academy_InfoSpark.ipa Payload/
+          cp CSK_Academy_InfoSpark.ipa ../../../CSK_Academy_InfoSpark.ipa
+
+      - name: Upload iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSK_Academy_InfoSpark_iOS_IPA
+          path: CSK_Academy_InfoSpark.ipa
+          retention-days: 30
+
+      - name: Upload Xcode Archive (.xcarchive)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSK_Academy_Xcode_Archive
+          path: ios/App/build/App.xcarchive
+          retention-days: 30
